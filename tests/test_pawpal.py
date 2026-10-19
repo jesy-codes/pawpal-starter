@@ -272,3 +272,15 @@ def test_tasks_that_would_run_past_midnight_are_skipped():
     assert skipped["Late meds"] == "set for 23:45, would run past midnight"
     assert skipped["Evening task 3"] == "no room left before midnight"
     assert skipped["Short task"] == "no room left before midnight"
+
+
+def test_find_conflicts_returns_the_overlapping_pair():
+    meds = Task("Meds", 10, "high", fixed_time="08:00")
+    vitamins = Task("Vitamins", 5, "high", fixed_time="08:05")
+    walk = Task("Walk", 20, "high", fixed_time="09:00")
+    scheduler = Scheduler(_owner_with(meds, vitamins, walk))
+    scheduler.generate_plan(date(2026, 10, 18))
+
+    pairs = scheduler.find_conflicts()
+
+    assert [(first.task, second.task) for first, second in pairs] == [(meds, vitamins)]

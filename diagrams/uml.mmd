@@ -59,6 +59,7 @@ classDiagram
         +list~ScheduledTask~ plan
         +list~tuple~ skipped
         +generate_plan(on: date) list~ScheduledTask~
+        +find_conflicts() list~tuple~
         +detect_conflicts() list~str~
         +mark_task_complete(task_id: str, on: date) Task
         +sort_by_time(entries: list~ScheduledTask~) list~ScheduledTask~

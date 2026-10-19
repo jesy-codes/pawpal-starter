@@ -50,7 +50,7 @@ class Task:
             )
         if self.fixed_time is not None:
             try:
-                # Store as zero-padded "HH:MM" ("8:00" -> "08:00") so times sort correctly as text.
+                # Store as zero-padded "HH:MM" ("8:00" -> "08:00") so times display consistently.
                 self.fixed_time = datetime.strptime(self.fixed_time, "%H:%M").strftime("%H:%M")
             except ValueError:
                 raise ValueError(f"fixed_time must be \"HH:MM\", got {self.fixed_time!r}") from None
@@ -263,19 +263,24 @@ class Scheduler:
                 clock = end
         return clock
 
-    def detect_conflicts(self) -> list[str]:
-        """Return a warning for each pair of planned tasks whose times overlap (empty if none)."""
-        warnings = []
+    def find_conflicts(self) -> list[tuple[ScheduledTask, ScheduledTask]]:
+        """Return each pair of planned tasks whose times overlap (empty if none)."""
+        pairs = []
         for i, first in enumerate(self.plan):
             # The plan is sorted by start, so only the tasks that begin before this one ends can overlap it.
             for second in self.plan[i + 1 :]:
                 if second.start >= first.end:
                     break
-                warnings.append(
-                    f"{first.task.pet_name}: {first.task.title} ({first.time}-{first.end:%H:%M}) overlaps "
-                    f"{second.task.pet_name}: {second.task.title} ({second.time}-{second.end:%H:%M})"
-                )
-        return warnings
+                pairs.append((first, second))
+        return pairs
+
+    def detect_conflicts(self) -> list[str]:
+        """Return a warning for each pair of planned tasks whose times overlap (empty if none)."""
+        return [
+            f"{first.task.pet_name}: {first.task.title} ({first.time}-{first.end:%H:%M}) overlaps "
+            f"{second.task.pet_name}: {second.task.title} ({second.time}-{second.end:%H:%M})"
+            for first, second in self.find_conflicts()
+        ]
 
     def mark_task_complete(self, task_id: str, on: Optional[date] = None) -> Task:
         """Complete a task for whichever pet owns it and return the task's next occurrence."""

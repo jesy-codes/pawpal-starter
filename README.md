@@ -137,7 +137,7 @@ collected 20 items
 
 tests/test_pawpal.py ....................                                [100%]
 
-============================== 20 passed in 0.09s ==============================
+============================== 20 passed in 0.08s ==============================
 ```
 
 **Confidence Level: ⭐⭐⭐⭐☆ (4/5)**
@@ -146,14 +146,33 @@ All 20 tests pass, and they cover the scheduler's core rules plus the edge cases
 
 ## 📐 Smarter Scheduling
 
-| Feature | Method(s) | Notes |
-|---------|-----------|-------|
-| Task sorting | `Scheduler.generate_plan()`, `Scheduler.sort_by_time()` | Tasks are picked by priority (shorter first on ties so more fit). `sort_by_time()` sorts `ScheduledTask`s with a lambda key on their full start date and time, so the order stays right even across midnight. Tasks that would run past midnight are skipped, so a plan never spills into the next day. |
-| Filtering | `Scheduler.filter_tasks()`, `Task.is_due()` | Filter by pet name, completion status, or both. Only due tasks are planned, and tasks that don't fit the owner's remaining minutes are skipped with a reason. |
-| Conflict handling | `Scheduler.detect_conflicts()`, `Task.fixed_time` | Fixed-time tasks are placed exactly; flexible tasks move past them. Any remaining overlap (e.g. two pets' meds both at 08:00) is reported as a warning in the terminal, in `explain_plan()`, and in the app, instead of crashing. |
-| Recurring tasks | `Pet.mark_task_complete()`, `Scheduler.mark_task_complete()`, `Task.next_occurrence()` | Completing a task creates a new one due the next day (daily) or 7 days later (weekly), using `date + timedelta`. Calling `Task.mark_complete()` directly only records the date. |
+All of these live in `pawpal_system.py`.
 
-**Tradeoff:** conflict detection only warns. It doesn't move a fixed-time task, because an exact time (like meds) is usually one the owner chose on purpose, so the owner decides how to resolve it.
+| Feature | Method(s) |
+|---------|-----------|
+| Sorting | `Scheduler.sort_by_time()`, `Scheduler.generate_plan()` |
+| Filtering | `Scheduler.filter_tasks()`, `Task.is_due()` |
+| Conflict detection | `Scheduler.detect_conflicts()`, `Scheduler._next_free_slot()` |
+| Recurring tasks | `Pet.mark_task_complete()`, `Scheduler.mark_task_complete()`, `Task.next_occurrence()` |
+
+### Sorting
+- **`Scheduler.sort_by_time(entries)`** returns planned tasks (`ScheduledTask`s) in start-time order using `sorted(entries, key=lambda s: s.start)`. It sorts by the full date and time rather than the "HH:MM" text, which would put a task at 00:30 the next day before one at 23:00.
+- **`Scheduler.generate_plan()`** picks tasks by priority (high → medium → low), shorter first on ties so more fit. It then sorts the finished plan with `sort_by_time()`.
+
+### Filtering
+- **`Scheduler.filter_tasks(pet_name=None, completed=None)`** returns the owner's tasks for one pet, by completion status, or both. Leaving an argument as `None` means "don't filter on this". Example: `filter_tasks(pet_name="Mochi", completed=False)` gives Mochi's tasks still to do.
+- **`Task.is_due(on)`** keeps finished tasks and tasks due on a later date out of the plan.
+
+### Conflict detection
+- **`Scheduler.detect_conflicts()`** returns a warning for each pair of planned tasks whose time ranges overlap, not just ones with the same start time. Because the plan is sorted, it compares each task only with the tasks that start before it ends. Example warning: `Mochi: Joint supplement (08:00-08:05) overlaps Luna: Thyroid medication (08:00-08:05)`.
+- **`Scheduler._next_free_slot()`** prevents most conflicts in the first place. Tasks with a `fixed_time` (like meds at 08:00) are placed first, and flexible tasks move past them. So only two fixed-time tasks can still overlap.
+- Nothing may run past midnight: a task that would is skipped with a reason ("would run past midnight" or "no room left before midnight").
+- Conflicts are warnings, not errors. They show up in `main.py`, in `explain_plan()`, and in the app, and the scheduler doesn't move fixed-time tasks on its own.
+
+### Recurring tasks
+- **`Pet.mark_task_complete(task_id, on)`** marks a task done and adds its next occurrence. **`Scheduler.mark_task_complete()`** does the same when you only have the task id and not the pet.
+- **`Task.next_occurrence()`** creates the new task due `last_completed + timedelta(days=1)` for daily tasks or `+ timedelta(weeks=1)` for weekly ones. `timedelta` handles month and year rollovers (Oct 31 → Nov 1, Dec 28 → Jan 4).
+- Calling `Task.mark_complete()` directly only records the date and doesn't create the next occurrence.
 
 ## 📸 Demo Walkthrough
 
