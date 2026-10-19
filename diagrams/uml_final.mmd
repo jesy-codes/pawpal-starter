@@ -28,11 +28,11 @@ classDiagram
         +int duration_minutes
         +str priority
         +str category
-        +str preferred_time
-        +str fixed_time
+        +Optional~str~ preferred_time
+        +Optional~str~ fixed_time
         +str frequency
-        +date due_date
-        +date last_completed
+        +Optional~date~ due_date
+        +Optional~date~ last_completed
         +str pet_name
         +str task_id
         -_validate() None
@@ -48,29 +48,30 @@ classDiagram
         +Task task
         +datetime start
         +str reason
-        +end() datetime
-        +time() str
+        +datetime end
+        +str time
     }
 
     class Scheduler {
         +Owner owner
         +str day_start
-        +date plan_date
+        +Optional~date~ plan_date
         +list~ScheduledTask~ plan
         +list~tuple~ skipped
         +generate_plan(on: date) list~ScheduledTask~
         +find_conflicts() list~tuple~
         +detect_conflicts() list~str~
         +mark_task_complete(task_id: str, on: date) Task
-        +sort_by_time(entries: list~ScheduledTask~) list~ScheduledTask~
+        +sort_by_time(entries: list~ScheduledTask~)$ list~ScheduledTask~
         +filter_tasks(pet_name: str, completed: bool) list~Task~
         +explain_plan() str
-        -_next_free_slot(clock: datetime, minutes: int, busy: list) datetime
+        -_next_free_slot(clock, minutes, busy)$ datetime
         -_at(hhmm: str) datetime
     }
 
-    note for Task "priority: high | medium | low, ranked 3 / 2 / 1 via PRIORITY_RANK\nfrequency: daily | weekly\npreferred_time: morning | afternoon | evening | None\nfixed_time: exact HH:MM, overrides preferred_time"
-    note for Scheduler "skipped holds (task, reason) pairs\nfixed-time tasks are placed first; others move past them\nafternoon tasks start no earlier than 12:00, evening no earlier than 18:00"
+    note for Task "priority: high | medium | low, ranked 3 / 2 / 1 via PRIORITY_RANK<br>frequency: daily | weekly<br>preferred_time: morning | afternoon | evening | None<br>fixed_time: exact HH:MM, overrides preferred_time"
+    note for ScheduledTask "end and time are read-only properties computed from start"
+    note for Scheduler "skipped holds (Task, reason) pairs<br>find_conflicts() returns overlapping (ScheduledTask, ScheduledTask) pairs<br>underlined methods are static<br>fixed-time tasks are placed first; others move past them<br>afternoon tasks start no earlier than 12:00, evening no earlier than 18:00"
 
     Owner "1" o-- "0..*" Pet : has
     Pet "1" *-- "0..*" Task : has
@@ -79,3 +80,5 @@ classDiagram
     Scheduler "1" *-- "0..*" ScheduledTask : plan
     ScheduledTask --> Task : places
     Scheduler --> Task : skips
+    Scheduler ..> Pet : mark_task_complete() delegates
+    Task ..> Task : next_occurrence() creates

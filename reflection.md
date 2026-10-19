@@ -17,18 +17,14 @@ Core actions a user should be able to perform:
 
 **b. Design changes**
 
-Yes. After reviewing the class skeleton with AI, I found some missing relationships and logic bottlenecks, and I changed the design before implementing the scheduling logic.
+Yes. When I had AI review my skeleton, it found a few things I'd missed, so I fixed them before writing any real logic:
 
-Missing relationships:
-- **Scheduler and Pet:** The Scheduler originally took one owner and one pet, but an owner can have several pets and only one daily time budget. Scheduling each pet separately would let every pet use the owner's full available time. I changed the Scheduler to take the Owner and gather tasks from all of the owner's pets, so the time is shared across them.
-- **Task and Pet:** A task didn't know which pet it belonged to. Once tasks from several pets are combined into one plan, the plan would show "Walk" without saying whose walk it is. I linked each task to its pet (a `pet_name` field) so the plan stays clear.
-
-Logic bottlenecks:
-- **Priority sorting:** Priority was stored as text ("high", "medium", "low"), and sorting text alphabetically puts "low" before "medium". I mapped priorities to numbers so they sort in the right order.
-- **Removing tasks:** Two tasks with the same details count as equal, so removing one could delete the wrong task. I gave each task a unique id and changed removal to use it.
-- **Completed tasks never reset:** A task marked complete stayed complete forever, which doesn't work for daily care like feeding. I added a frequency (daily or weekly) and changed completion to be tracked by date.
-- **Scheduler call order:** `explain_plan()` only works after `generate_plan()`, and running `generate_plan()` twice could duplicate tasks. I made the scheduler clear its previous plan each time it generates a new one.
-
+- The Scheduler took one owner and one pet. But an owner can have a few pets and only one day, so each pet would've gotten the full time. Now the Scheduler takes the Owner and pulls tasks from all the pets.
+- Tasks didn't know which pet they belonged to, so a combined plan would just say "Walk" without saying whose walk. I added a `pet_name`.
+- Priority was text, and sorting text alphabetically puts "low" before "medium". I switched to numbers.
+- Two identical tasks counted as equal, so removing one could remove the wrong one. Every task gets an id now.
+- A completed task stayed completed forever, which doesn't work for feeding every day. I added daily/weekly and track completion by date.
+- Running `generate_plan()` twice could duplicate tasks, so it clears the old plan first.
 
 ---
 
@@ -36,15 +32,13 @@ Logic bottlenecks:
 
 **a. Constraints and priorities**
 
-**Constraints:** the owner's available time (shared by all pets), task priority, whether a task is due, exact times (like meds at 08:00), and time-of-day preference (morning, afternoon, evening).
+The scheduler looks at the owner's available time (shared by all pets), priority, whether a task is due, exact times like meds at 08:00, and morning/afternoon/evening preferences.
 
-**What matters most:** I ranked them by what happens to the pet if one is broken. Time comes first because the owner can't do more than they have time for. Priority decides what gets dropped, since missing meds is worse than missing playtime. Exact times come next, and time-of-day preference matters least because it only changes the order of tasks, not which ones get done.
+I ranked them by what happens to the pet if one gets broken. Time comes first since you can't do more than you have time for. Priority decides what gets cut, because missing meds is worse than missing playtime. Exact times come next, and time of day matters least since it only changes the order, not what gets done.
 
 **b. Tradeoffs**
 
-**Tradeoff: when two fixed-time tasks overlap, the scheduler warns instead of fixing it.** For example, if Luna's meds and Mochi's supplement are both set for 08:00, the plan keeps both at 08:00 and shows a conflict warning. It doesn't move either one.
-
-**Why it's reasonable:** a fixed time is usually set on purpose, like medication. Moving it automatically could make a dose late without the owner noticing, and often the owner can do both at once anyway. A warning lets the owner decide. The downside is that the plan can still contain an overlap the owner has to resolve themselves.
+If two fixed-time tasks overlap (like Luna's meds and Mochi's supplement both at 08:00), the scheduler warns me instead of moving one. I think that's fine because fixed times are usually on purpose, like medication, and quietly pushing a dose later seems worse than just telling the owner. The downside is the owner has to sort it out themselves.
 
 ---
 
@@ -52,22 +46,23 @@ Logic bottlenecks:
 
 **a. How you used AI**
 
-I used Claude Code at every stage of the project:
-- **Design brainstorming:** turning the scenario into core user actions, deciding whether Schedule should be its own class (AI suggested a Scheduler class to hold the planning logic), and listing each class's attributes and methods.
-- **Diagramming and scaffolding:** generating the Mermaid UML and the dataclass skeletons in `pawpal_system.py`.
-- **Design review:** asking it to review the skeleton for missing relationships and logic bottlenecks before writing any logic.
-- **Implementation and testing:** filling in the methods, writing `main.py` to try the schedule in the terminal, and drafting pytest tests.
-
-The most helpful prompts were review questions, like "do you notice any missing relationships or potential logic bottlenecks?", asked on code that already existed. They found real problems (priorities sorting alphabetically, one scheduler per pet splitting the owner's time) before they turned into bugs.
+I used Claude Code for pretty much every step: brainstorming the classes, making the UML and the skeleton, reviewing the design, writing the logic, the tests, and hooking up the Streamlit app. The most useful prompts were the review ones, like "do you see any missing relationships or bottlenecks?" on code I already had. That's how I caught the priority sorting and the one-pet scheduler problems early.
 
 **b. Judgment and verification**
 
-I didn't take the AI's suggestions all at once:
-- **Picking from the design review:** The review listed nine issues. I chose the two missing relationships (Scheduler and Pet, Task and Pet) and four logic bottlenecks (priority sorting, removing tasks, completion reset, scheduler call order) to fix first.
-- **Owner preferences:** When the AI pointed out that `Owner.preferences` was stored but never used, I decided to remove it instead of building a preference feature, because each task's preferred time of day already covered it.
-- **Order of work:** When the AI offered to remove preferences, update the UML, and write tests together, I only approved the first two so I could add tests as a separate step.
+I didn't just take everything it said. The review listed nine issues and I picked six to fix. It also pointed out that `Owner.preferences` wasn't used anywhere, and instead of building a whole feature for it I just deleted it, since tasks already have a preferred time of day. And when it offered to do three things at once, I said yes to two and kept tests as their own step.
 
-To verify the results, I ran a two-pet example and read the printed schedule. It caught a real bug: the first version packed every task back to back from 08:00, so the "Evening walk" was scheduled at 08:15. The scheduler was changed so afternoon tasks start at 12:00 or later and evening tasks at 18:00 or later, and I re-ran the example to confirm. I also ran `main.py` and the pytest tests (`python -m pytest`), which pass.
+To check things, I ran the code and read the output. The first two-pet run had the evening walk at 08:15, which was obviously wrong, so we fixed it so afternoon tasks start at 12:00 and evening ones at 18:00.
+
+**c. AI strategy**
+
+What helped most was having it actually run stuff (`main.py`, the tests, a fake click-through of the app, even rendering the UML) instead of just writing code. That caught real problems: the 08:15 evening walk, plans after midnight sorting wrong, UML notes showing `\n` as text, and a README example that said 65 minutes when the app said 70.
+
+One suggestion I changed: the review suggested a `ScheduledTask` class to hold each task's start time and reason. I skipped it at first and used two dictionaries. Once I added fixed times, sorting, and conflicts, that got messy, so I added `ScheduledTask` then. I liked adding it when I actually needed it instead of up front.
+
+Using separate chats for different phases kept each one focused on one thing. A new chat only knows what's in the files, so if the code and the README didn't match anymore, it showed up fast.
+
+The big thing I learned about being the "lead architect" is that the AI is really fast, but it doesn't decide what matters. I still had to pick which issues to fix, decide that conflicts should warn instead of moving meds around, and keep the design small. And I learned not to trust "done" until I'd seen it run.
 
 ---
 
@@ -75,26 +70,21 @@ To verify the results, I ran a two-pet example and read the printed schedule. It
 
 **a. What you tested**
 
-- What behaviors did you test?
-- Why were these tests important?
+There are 21 tests. They cover sorting (including past midnight), picking tasks by priority when time is short, daily and weekly repeats (even Oct 31 → Nov 1 and Dec 28 → Jan 4), conflicts (including two pets at the exact same time, and back-to-back tasks not counting), filtering, and bad input like "25:00". These are the rules an owner actually depends on. If recurrence breaks, a pet could miss a feeding and nothing would tell you.
 
 **b. Confidence**
 
-- How confident are you that your scheduler works correctly?
-- What edge cases would you test next if you had more time?
+4 out of 5. Everything passes, and testing found a real bug (plans past midnight were in the wrong order) that was fixed. It's not a 5 because the Streamlit app doesn't have automated tests, and picking by priority can leave some time unused.
 
 ---
 
 ## 5. Reflection
 
 **a. What went well**
-
-- What part of this project are you most satisfied with?
+The algorithm and trade-off reflection help me design better this app. 
 
 **b. What you would improve**
-
-- If you had another iteration, what would you improve or redesign?
+Maybe save data between sessions (right now it's gone when the app restarts), and have conflicts suggest a free time instead of just warning.
 
 **c. Key takeaway**
-
-- What is one important thing you learned about designing systems or working with AI on this project?
+Doing the design first was worth it. The biggest problems got caught in the UML and skeleton before there was any real logic to fix. After that, running things and testing was the only way I really knew whether something worked.
