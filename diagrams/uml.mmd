@@ -19,6 +19,7 @@ classDiagram
         +list~Task~ tasks
         +add_task(task: Task) None
         +remove_task(task_id: str) None
+        +mark_task_complete(task_id: str, on: date) Task
         +get_tasks() list~Task~
     }
 
@@ -28,7 +29,9 @@ classDiagram
         +str priority
         +str category
         +str preferred_time
+        +str fixed_time
         +str frequency
+        +date due_date
         +date last_completed
         +str pet_name
         +str task_id
@@ -36,27 +39,42 @@ classDiagram
         +priority_rank() int
         +edit(title: str, duration_minutes: int, priority: str) None
         +mark_complete(on: date) None
+        +is_complete() bool
+        +next_occurrence() Task
         +is_due(on: date) bool
+    }
+
+    class ScheduledTask {
+        +Task task
+        +datetime start
+        +str reason
+        +end() datetime
+        +time() str
     }
 
     class Scheduler {
         +Owner owner
         +str day_start
         +date plan_date
-        +list~Task~ scheduled_tasks
-        +list~Task~ skipped_tasks
-        +dict~str, str~ start_times
-        +dict~str, str~ reasons
-        +generate_plan(on: date) list~Task~
+        +list~ScheduledTask~ plan
+        +list~tuple~ skipped
+        +generate_plan(on: date) list~ScheduledTask~
+        +detect_conflicts() list~str~
+        +mark_task_complete(task_id: str, on: date) Task
+        +sort_by_time(entries: list~ScheduledTask~) list~ScheduledTask~
+        +filter_tasks(pet_name: str, completed: bool) list~Task~
         +explain_plan() str
+        -_next_free_slot(clock: datetime, minutes: int, busy: list) datetime
         -_at(hhmm: str) datetime
     }
 
-    note for Task "priority: high | medium | low, ranked 3 / 2 / 1 via PRIORITY_RANK\nfrequency: daily | weekly\npreferred_time: morning | afternoon | evening | None"
-    note for Scheduler "start_times and reasons are keyed by task_id\nafternoon tasks start no earlier than 12:00, evening no earlier than 18:00"
+    note for Task "priority: high | medium | low, ranked 3 / 2 / 1 via PRIORITY_RANK\nfrequency: daily | weekly\npreferred_time: morning | afternoon | evening | None\nfixed_time: exact HH:MM, overrides preferred_time"
+    note for Scheduler "skipped holds (task, reason) pairs\nfixed-time tasks are placed first; others move past them\nafternoon tasks start no earlier than 12:00, evening no earlier than 18:00"
 
     Owner "1" o-- "0..*" Pet : has
     Pet "1" *-- "0..*" Task : has
     Task ..> Pet : belongs to (pet_name)
     Scheduler --> Owner : reads available time and get_all_tasks()
-    Scheduler --> Task : schedules or skips
+    Scheduler "1" *-- "0..*" ScheduledTask : plan
+    ScheduledTask --> Task : places
+    Scheduler --> Task : skips

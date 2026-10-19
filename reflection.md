@@ -36,13 +36,15 @@ Logic bottlenecks:
 
 **a. Constraints and priorities**
 
-- What constraints does your scheduler consider (for example: time, priority, preferences)?
-- How did you decide which constraints mattered most?
+**Constraints:** the owner's available time (shared by all pets), task priority, whether a task is due, exact times (like meds at 08:00), and time-of-day preference (morning, afternoon, evening).
+
+**What matters most:** I ranked them by what happens to the pet if one is broken. Time comes first because the owner can't do more than they have time for. Priority decides what gets dropped, since missing meds is worse than missing playtime. Exact times come next, and time-of-day preference matters least because it only changes the order of tasks, not which ones get done.
 
 **b. Tradeoffs**
 
-- Describe one tradeoff your scheduler makes.
-- Why is that tradeoff reasonable for this scenario?
+**Tradeoff: when two fixed-time tasks overlap, the scheduler warns instead of fixing it.** For example, if Luna's meds and Mochi's supplement are both set for 08:00, the plan keeps both at 08:00 and shows a conflict warning. It doesn't move either one.
+
+**Why it's reasonable:** a fixed time is usually set on purpose, like medication. Moving it automatically could make a dose late without the owner noticing, and often the owner can do both at once anyway. A warning lets the owner decide. The downside is that the plan can still contain an overlap the owner has to resolve themselves.
 
 ---
 
