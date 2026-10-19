@@ -109,31 +109,46 @@ Completed tasks:
 
 ## 🧪 Testing PawPal+
 
+Run the full test suite from the project folder:
+
 ```bash
-# Run the full test suite:
-pytest
-
-# Run with coverage:
-pytest --cov
+python -m pytest
 ```
 
-Sample test output:
+The 20 tests in `tests/test_pawpal.py` cover:
+
+- **Tasks and pets:** marking a task complete, adding tasks to a pet, and rejecting an invalid fixed time.
+- **Sorting:** the plan comes out in clock order (including with a fixed-time task in the middle), and `sort_by_time()` uses the full date, so a task after midnight sorts after one late in the evening.
+- **Choosing what fits:** higher priority wins when time is short, a task that exactly fills the remaining time still fits, an owner whose pet has no tasks gets an empty plan, and generating twice doesn't duplicate tasks.
+- **Recurrence:** completing a daily or weekly task creates its next occurrence (across month and year boundaries), a completed task leaves today's plan and returns tomorrow, a missed occurrence stays due, and completing the same task twice is rejected.
+- **Conflicts and time slots:** overlapping tasks are flagged (including two pets at the exact same time), back-to-back tasks are not, flexible tasks move around fixed ones, and tasks that would run past midnight are skipped.
+- **Filtering:** by pet, by completion status, and both together.
+
+Output of a successful run:
 
 ```
-collected 9 items
+============================= test session starts ==============================
+platform darwin -- Python 3.14.7, pytest-9.1.1, pluggy-1.7.0
+rootdir: /Users/jmrt/Documents/jesy-codes/code_path/pawpal-starter
+configfile: pytest.ini
+testpaths: tests
+plugins: anyio-4.15.1
+collected 20 items
 
-tests/test_pawpal.py .........                                           [100%]
+tests/test_pawpal.py ....................                                [100%]
 
-============================== 9 passed in 0.05s ===============================
+============================== 20 passed in 0.09s ==============================
 ```
 
-The tests cover marking a task complete, adding tasks to a pet, sorting by start time, filtering by pet and completion, daily and weekly recurrence (including month and year rollovers), conflict detection, placing flexible tasks around fixed ones, and rejecting an invalid fixed time.
+**Confidence Level: ⭐⭐⭐⭐☆ (4/5)**
+
+All 20 tests pass, and they cover the scheduler's core rules plus the edge cases most likely to break it (exact fits, back-to-back times, midnight, month and year rollovers). Testing also caught a real bug: plans that ran past midnight were sorted in the wrong order. I'm not at 5 stars because the Streamlit UI in `app.py` has no automated tests, and the greedy pick-by-priority approach can leave time unused in some cases (a known tradeoff, not a crash).
 
 ## 📐 Smarter Scheduling
 
 | Feature | Method(s) | Notes |
 |---------|-----------|-------|
-| Task sorting | `Scheduler.generate_plan()`, `Scheduler.sort_by_time()` | Tasks are picked by priority (shorter first on ties so more fit). `sort_by_time()` sorts `ScheduledTask`s with a lambda key on their "HH:MM" start times, which sort correctly as text because they're zero-padded. |
+| Task sorting | `Scheduler.generate_plan()`, `Scheduler.sort_by_time()` | Tasks are picked by priority (shorter first on ties so more fit). `sort_by_time()` sorts `ScheduledTask`s with a lambda key on their full start date and time, so the order stays right even across midnight. Tasks that would run past midnight are skipped, so a plan never spills into the next day. |
 | Filtering | `Scheduler.filter_tasks()`, `Task.is_due()` | Filter by pet name, completion status, or both. Only due tasks are planned, and tasks that don't fit the owner's remaining minutes are skipped with a reason. |
 | Conflict handling | `Scheduler.detect_conflicts()`, `Task.fixed_time` | Fixed-time tasks are placed exactly; flexible tasks move past them. Any remaining overlap (e.g. two pets' meds both at 08:00) is reported as a warning in the terminal, in `explain_plan()`, and in the app, instead of crashing. |
 | Recurring tasks | `Pet.mark_task_complete()`, `Scheduler.mark_task_complete()`, `Task.next_occurrence()` | Completing a task creates a new one due the next day (daily) or 7 days later (weekly), using `date + timedelta`. Calling `Task.mark_complete()` directly only records the date. |

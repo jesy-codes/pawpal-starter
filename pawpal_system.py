@@ -213,14 +213,19 @@ class Scheduler:
                     (task, f"not enough time left (needs {task.duration_minutes} min, {remaining} min left)")
                 )
 
+        # The plan covers one day, so nothing may run past midnight.
+        day_end = datetime.combine(self.plan_date + timedelta(days=1), datetime.min.time())
+
         # Fixed-time tasks go exactly where they were set; everything else works around them.
         for task in chosen:
             if task.fixed_time:
-                self.plan.append(
-                    ScheduledTask(
-                        task, self._at(task.fixed_time), f"{task.priority} priority, set for {task.fixed_time}"
-                    )
+                entry = ScheduledTask(
+                    task, self._at(task.fixed_time), f"{task.priority} priority, set for {task.fixed_time}"
                 )
+                if entry.end > day_end:
+                    self.skipped.append((task, f"set for {task.fixed_time}, would run past midnight"))
+                else:
+                    self.plan.append(entry)
         busy = sorted((s.start, s.end) for s in self.plan)
 
         # Lay out the other tasks through the day: morning before evening, then by priority.
@@ -233,12 +238,16 @@ class Scheduler:
             # Don't start an afternoon or evening task before that part of the day begins.
             if task.preferred_time in TIME_OF_DAY_START:
                 clock = max(clock, self._at(TIME_OF_DAY_START[task.preferred_time]))
-            clock = self._next_free_slot(clock, task.duration_minutes, busy)
+            start = self._next_free_slot(clock, task.duration_minutes, busy)
+            if start + timedelta(minutes=task.duration_minutes) > day_end:
+                # Leave the clock where it was so a shorter task later in the list can still fit.
+                self.skipped.append((task, "no room left before midnight"))
+                continue
             reason = f"{task.priority} priority"
             if task.preferred_time:
                 reason += f", preferred in the {task.preferred_time}"
-            self.plan.append(ScheduledTask(task, clock, reason))
-            clock += timedelta(minutes=task.duration_minutes)
+            self.plan.append(ScheduledTask(task, start, reason))
+            clock = start + timedelta(minutes=task.duration_minutes)
 
         self.plan = self.sort_by_time(self.plan)
         return list(self.plan)
@@ -278,9 +287,9 @@ class Scheduler:
     @staticmethod
     def sort_by_time(entries: list[ScheduledTask]) -> list[ScheduledTask]:
         """Return planned tasks ordered by start time."""
-        # Times are zero-padded "HH:MM" strings, so comparing them as text
-        # orders them by clock time ("08:05" < "12:00" < "18:30").
-        return sorted(entries, key=lambda s: s.time)
+        # Sort by the full date and time, not the "HH:MM" text, which would put
+        # a task at 00:30 the next day before one at 23:00.
+        return sorted(entries, key=lambda s: s.start)
 
     def filter_tasks(
         self, pet_name: Optional[str] = None, completed: Optional[bool] = None
