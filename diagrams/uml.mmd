@@ -1,15 +1,13 @@
 classDiagram
-    %% PawPal+ UML, revised after the skeleton review (see reflection.md section 1b).
+    %% PawPal+ UML, matching the implementation in pawpal_system.py.
     %% Keep this file updated so it matches your final implementation.
 
     class Owner {
         +str name
         +int available_minutes
-        +list~str~ preferences
         +list~Pet~ pets
         +add_pet(pet: Pet) None
         +set_available_time(minutes: int) None
-        +update_preferences(preferences: list~str~) None
         +get_all_tasks() list~Task~
     }
 
@@ -34,6 +32,7 @@ classDiagram
         +date last_completed
         +str pet_name
         +str task_id
+        -_validate() None
         +priority_rank() int
         +edit(title: str, duration_minutes: int, priority: str) None
         +mark_complete(on: date) None
@@ -42,16 +41,22 @@ classDiagram
 
     class Scheduler {
         +Owner owner
+        +str day_start
+        +date plan_date
         +list~Task~ scheduled_tasks
         +list~Task~ skipped_tasks
+        +dict~str, str~ start_times
+        +dict~str, str~ reasons
         +generate_plan(on: date) list~Task~
         +explain_plan() str
+        -_at(hhmm: str) datetime
     }
 
-    note for Task "priority: high | medium | low, ranked 3 / 2 / 1 via PRIORITY_RANK\nfrequency: daily | weekly"
+    note for Task "priority: high | medium | low, ranked 3 / 2 / 1 via PRIORITY_RANK\nfrequency: daily | weekly\npreferred_time: morning | afternoon | evening | None"
+    note for Scheduler "start_times and reasons are keyed by task_id\nafternoon tasks start no earlier than 12:00, evening no earlier than 18:00"
 
     Owner "1" o-- "0..*" Pet : has
     Pet "1" *-- "0..*" Task : has
     Task ..> Pet : belongs to (pet_name)
-    Scheduler --> Owner : uses time and all pets' tasks
+    Scheduler --> Owner : reads available time and get_all_tasks()
     Scheduler --> Task : schedules or skips

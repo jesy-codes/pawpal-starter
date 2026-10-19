@@ -17,17 +17,17 @@ Core actions a user should be able to perform:
 
 **b. Design changes**
 
-Yes. After reviewing the class skeleton with AI, I found some missing relationships and logic bottlenecks to fix before implementing the scheduling logic.
+Yes. After reviewing the class skeleton with AI, I found some missing relationships and logic bottlenecks, and I changed the design before implementing the scheduling logic.
 
 Missing relationships:
-- **Scheduler and Pet:** The Scheduler originally took one owner and one pet, but an owner can have several pets and only one daily time budget. Scheduling each pet separately would let every pet use the owner's full available time. I'm changing the Scheduler to take the Owner and gather tasks from all of the owner's pets, so the time is shared across them.
-- **Task and Pet:** A task didn't know which pet it belonged to. Once tasks from several pets are combined into one plan, the plan would show "Walk" without saying whose walk it is. I'm linking each task to its pet so the plan stays clear.
+- **Scheduler and Pet:** The Scheduler originally took one owner and one pet, but an owner can have several pets and only one daily time budget. Scheduling each pet separately would let every pet use the owner's full available time. I changed the Scheduler to take the Owner and gather tasks from all of the owner's pets, so the time is shared across them.
+- **Task and Pet:** A task didn't know which pet it belonged to. Once tasks from several pets are combined into one plan, the plan would show "Walk" without saying whose walk it is. I linked each task to its pet (a `pet_name` field) so the plan stays clear.
 
 Logic bottlenecks:
-- **Priority sorting:** Priority was stored as text ("high", "medium", "low"), and sorting text alphabetically puts "low" before "medium". I'm mapping priorities to numbers so they sort in the right order.
-- **Removing tasks:** Two tasks with the same details count as equal, so removing one could delete the wrong task. Giving each task a unique id fixes this.
-- **Completed tasks never reset:** A task marked complete stayed complete forever, which doesn't work for daily care like feeding. Tasks need a frequency (daily or weekly) and completion tracked by date.
-- **Scheduler call order:** `explain_plan()` only works after `generate_plan()`, and running `generate_plan()` twice could duplicate tasks. The scheduler should clear its previous plan each time it generates a new one.
+- **Priority sorting:** Priority was stored as text ("high", "medium", "low"), and sorting text alphabetically puts "low" before "medium". I mapped priorities to numbers so they sort in the right order.
+- **Removing tasks:** Two tasks with the same details count as equal, so removing one could delete the wrong task. I gave each task a unique id and changed removal to use it.
+- **Completed tasks never reset:** A task marked complete stayed complete forever, which doesn't work for daily care like feeding. I added a frequency (daily or weekly) and changed completion to be tracked by date.
+- **Scheduler call order:** `explain_plan()` only works after `generate_plan()`, and running `generate_plan()` twice could duplicate tasks. I made the scheduler clear its previous plan each time it generates a new one.
 
 
 ---
@@ -50,13 +50,22 @@ Logic bottlenecks:
 
 **a. How you used AI**
 
-- How did you use AI tools during this project (for example: design brainstorming, debugging, refactoring)?
-- What kinds of prompts or questions were most helpful?
+I used Claude Code at every stage of the project:
+- **Design brainstorming:** turning the scenario into core user actions, deciding whether Schedule should be its own class (AI suggested a Scheduler class to hold the planning logic), and listing each class's attributes and methods.
+- **Diagramming and scaffolding:** generating the Mermaid UML and the dataclass skeletons in `pawpal_system.py`.
+- **Design review:** asking it to review the skeleton for missing relationships and logic bottlenecks before writing any logic.
+- **Implementation and testing:** filling in the methods, writing `main.py` to try the schedule in the terminal, and drafting pytest tests.
+
+The most helpful prompts were review questions, like "do you notice any missing relationships or potential logic bottlenecks?", asked on code that already existed. They found real problems (priorities sorting alphabetically, one scheduler per pet splitting the owner's time) before they turned into bugs.
 
 **b. Judgment and verification**
 
-- Describe one moment where you did not accept an AI suggestion as-is.
-- How did you evaluate or verify what the AI suggested?
+I didn't take the AI's suggestions all at once:
+- **Picking from the design review:** The review listed nine issues. I chose the two missing relationships (Scheduler and Pet, Task and Pet) and four logic bottlenecks (priority sorting, removing tasks, completion reset, scheduler call order) to fix first.
+- **Owner preferences:** When the AI pointed out that `Owner.preferences` was stored but never used, I decided to remove it instead of building a preference feature, because each task's preferred time of day already covered it.
+- **Order of work:** When the AI offered to remove preferences, update the UML, and write tests together, I only approved the first two so I could add tests as a separate step.
+
+To verify the results, I ran a two-pet example and read the printed schedule. It caught a real bug: the first version packed every task back to back from 08:00, so the "Evening walk" was scheduled at 08:15. The scheduler was changed so afternoon tasks start at 12:00 or later and evening tasks at 18:00 or later, and I re-ran the example to confirm. I also ran `main.py` and the pytest tests (`python -m pytest`), which pass.
 
 ---
 
